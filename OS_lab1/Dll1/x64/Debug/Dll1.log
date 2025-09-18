@@ -1,0 +1,13 @@
+﻿  Vector.cpp
+C:\Users\Радомир\source\repos\Dll1\Vector.h(13,28): warning C4251: "Vector_lib::Vector::x": "Number_lib::Number" должен иметь dll-интерфейс для использования клиентами "Vector_lib::Vector"
+  (компиляция исходного файла "/Vector.cpp")
+      C:\Users\Радомир\source\repos\StaticLib1\Number.h(8,11):
+       см. объявление "Number_lib::Number"
+  
+C:\Users\Радомир\source\repos\Dll1\Vector.h(14,28): warning C4251: "Vector_lib::Vector::y": "Number_lib::Number" должен иметь dll-интерфейс для использования клиентами "Vector_lib::Vector"
+  (компиляция исходного файла "/Vector.cpp")
+      C:\Users\Радомир\source\repos\StaticLib1\Number.h(8,11):
+       см. объявление "Number_lib::Number"
+  
+     Создается библиотека C:\Users\Радомир\source\repos\StaticLib1\x64\Debug\Dll1.lib и объект C:\Users\Радомир\source\repos\StaticLib1\x64\Debug\Dll1.exp
+  Dll1.vcxproj -> C:\Users\Радомир\source\repos\StaticLib1\x64\Debug\Dll1.dll
