@@ -1,0 +1,8 @@
+Matrix size: 2000 * 2000
+Block size: 400
+Single thread stupid algorithm time: 21839 ms
+Single thread block algorithm time: 21085 ms
+Multi thread block algorithm time: 5346 ms
+Single thread block multiplication returned correct matrix
+Multi thread block multiplication returned correct matrix
+Number of used threads in multi thread: 25
