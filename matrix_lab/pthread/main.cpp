@@ -116,5 +116,5 @@ int main() {
     Matrix b = generateMatrix(n);
     Matrix correctRes = stupidMatrixMultiplication(a, b);
     solve(a, b, correctRes, blockSize);
-    return 0;
+    
 }
