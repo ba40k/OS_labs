@@ -1,20 +1,13 @@
 #include <bits/stdc++.h>
 #include <pthread.h>
-#include <chrono>
-
-#pragma GCC target("avx2")
-#pragma GCC optimize("O3")
-
 using namespace std;
+
 using Matrix = vector<vector<int>>;
 using Row = vector<int>;
 
-struct ThreadArgs {
-    int i, j, blockSize;
-    Matrix *a, *b, *res;
-};
+pthread_mutex_t global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-Matrix genereateMatrix(int n) {
+Matrix generateMatrix(int n) {
     int limit = 6;
     srand(time(0));
     Matrix matrix(n, Row(n));
@@ -34,102 +27,94 @@ Matrix stupidMatrixMultiplication(Matrix &a, Matrix &b) {
     return res;
 }
 
-void printMatrix(Matrix &a) {
-    for (auto &row : a) {
-        for (auto &x : row)
-            cout << x << ' ';
-        cout << '\n';
+struct BlockNumber {
+    int i, j;
+    BlockNumber(int _i, int _j) : i(_i), j(_j) {}
+};
+
+struct ThreadArgs {
+    BlockNumber a_block;
+    BlockNumber b_block;
+    int blockSize;
+    Matrix *a;
+    Matrix *b;
+    Matrix *res;
+};
+
+void* multiplicate_blocks(void* arg) {
+    ThreadArgs* args = (ThreadArgs*)arg;
+    int n = args->a->size();
+    for (int i = args->a_block.i * args->blockSize; i < min((args->a_block.i + 1) * args->blockSize, n); i++) {
+        for (int j = args->b_block.j * args->blockSize; j < min((args->b_block.j + 1) * args->blockSize, n); j++) {
+            int sum = 0;
+            for (int k = args->a_block.j * args->blockSize; k < min((args->a_block.j + 1) * args->blockSize, n); k++) {
+                sum += (*args->a)[i][k] * (*args->b)[k][j];
+            }
+            pthread_mutex_lock(&global_mutex);
+            (*args->res)[i][j] += sum;
+            pthread_mutex_unlock(&global_mutex);
+        }
     }
-    cout << "_____________________\n";
-}
-
-void* addBlockMultiplication(void* arg) {
-    ThreadArgs *args = (ThreadArgs*)arg;
-    int i = args->i, j = args->j, blockSize = args->blockSize;
-    Matrix &a = *(args->a), &b = *(args->b), &res = *(args->res);
-    int n = a.size();
-    for (int row = i * blockSize; row < min(n, (i + 1) * blockSize); row++)
-        for (int col = j * blockSize; col < min(n, (j + 1) * blockSize); col++)
-            for (int k = 0; k < n; k++)
-                res[row][col] += a[row][k] * b[k][col];
+    delete args;
     return nullptr;
-}
-
-Matrix singleThreadblockMultiplication(Matrix &a, Matrix &b, int blockSize) {
-    int n = a.size();
-    Matrix res(n, Row(n));
-    int blocks = n / blockSize + (n % blockSize != 0);
-    for (int i = 0; i < blocks; i++)
-        for (int j = 0; j < blocks; j++)
-            for (int row = i * blockSize; row < min(n, (i + 1) * blockSize); row++)
-                for (int col = j * blockSize; col < min(n, (j + 1) * blockSize); col++)
-                    for (int k = 0; k < n; k++)
-                        res[row][col] += a[row][k] * b[k][col];
-    return res;
 }
 
 Matrix multiThreadblockMultiplication(Matrix &a, Matrix &b, int blockSize, int &threadsUsed) {
     int n = a.size();
-    Matrix res(n, Row(n));
-    int blocks = n / blockSize + (n % blockSize != 0);
-    int totalThreads = blocks * blocks;
-    vector<pthread_t> threads(totalThreads);
-    vector<ThreadArgs> args(totalThreads);
-    int curThread = 0;
+    Matrix res(n, Row(n, 0));
+    int blocks = (n + blockSize - 1) / blockSize;
+    vector<pthread_t> threads;
 
     for (int i = 0; i < blocks; i++) {
         for (int j = 0; j < blocks; j++) {
-            args[curThread] = {i, j, blockSize, &a, &b, &res};
-            pthread_create(&threads[curThread], nullptr, addBlockMultiplication, &args[curThread]);
-            curThread++;
-            threadsUsed++;
+            for (int k = 0; k < blocks; k++) {
+                ThreadArgs* args = new ThreadArgs{
+                    BlockNumber(i, k),
+                    BlockNumber(k, j),
+                    blockSize,
+                    &a,
+                    &b,
+                    &res
+                };
+                pthread_t tid;
+                pthread_create(&tid, nullptr, multiplicate_blocks, args);
+                threads.push_back(tid);
+                threadsUsed++;
+            }
         }
     }
 
-    for (int i = 0; i < totalThreads; i++)
-        pthread_join(threads[i], nullptr);
+    for (auto &tid : threads) {
+        pthread_join(tid, nullptr);
+    }
 
     return res;
 }
 
+void solve(Matrix &a, Matrix &b, Matrix &correctRes, int blockSize) {
+    cout << "Block size: " << blockSize << '\n';
+    int threadsUsed = 0;
+    auto start = chrono::high_resolution_clock::now();
+    Matrix multiThreadblockMultiplicationRes = multiThreadblockMultiplication(a, b, blockSize, threadsUsed);
+    auto stop = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+    cout << "Multi thread block algorithm time: " << duration.count() << " ms" << endl;
+    if (correctRes == multiThreadblockMultiplicationRes) {
+        cout << "Multi thread block multiplication returned correct matrix\n";
+    } else {
+        cout << "Multi thread block multiplication returned incorrect matrix\n";
+    }
+    cout << "Number of used threads: " << threadsUsed << "\n======================\n";
+}
+
 int main() {
-    freopen("out.txt", "w", stdout);
+    freopen("out.txt", "a", stdout);
     int n, blockSize;
     cin >> n >> blockSize;
     cout << "Matrix size: " << n << " * " << n << '\n';
-    cout << "Block size: " << blockSize << '\n';
-
-    Matrix a = genereateMatrix(n);
-    Matrix b = genereateMatrix(n);
-
-    auto start = chrono::high_resolution_clock::now();
+    Matrix a = generateMatrix(n);
+    Matrix b = generateMatrix(n);
     Matrix correctRes = stupidMatrixMultiplication(a, b);
-    auto stop = chrono::high_resolution_clock::now();
-    auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-    cout << "Single thread stupid algorithm time: " << duration.count() << " ms\n";
-
-    start = chrono::high_resolution_clock::now();
-    Matrix singleThreadblockMultiplicationRes = singleThreadblockMultiplication(a, b, blockSize);
-    stop = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-    cout << "Single thread block algorithm time: " << duration.count() << " ms\n";
-
-    int threadsUsed = 0;
-    start = chrono::high_resolution_clock::now();
-    Matrix multiThreadblockMultiplicationRes = multiThreadblockMultiplication(a, b, blockSize, threadsUsed);
-    stop = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-    cout << "Multi thread block algorithm time: " << duration.count() << " ms\n";
-
-    if (correctRes == singleThreadblockMultiplicationRes)
-        cout << "Single thread block multiplication returned correct matrix\n";
-    else
-        cout << "Single thread block multiplication returned incorrect matrix\n";
-
-    if (correctRes == multiThreadblockMultiplicationRes)
-        cout << "Multi thread block multiplication returned correct matrix\n";
-    else
-        cout << "Multi thread block multiplication returned incorrect matrix\n";
-
-    cout << "Number of used threads in multi thread: " << threadsUsed << '\n';
+    solve(a, b, correctRes, blockSize);
+    return 0;
 }
