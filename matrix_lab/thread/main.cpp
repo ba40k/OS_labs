@@ -88,7 +88,6 @@ void solve(Matrix &a, Matrix &b,Matrix &correctRes, int blockSize){
     auto start = std::chrono::high_resolution_clock::now();
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    std::cout << "Single thread stupid algorithm time: " << duration.count() << " ms" << std::endl;
     int threadsUsed = 0;
     start = std::chrono::high_resolution_clock::now();
     Matrix multiThreadblockMultiplicationRes = multiThreadblockMultiplication(a,b,blockSize,threadsUsed);
@@ -110,7 +109,12 @@ int main(){
     cout<<"Matrix size: "<<n<<" * "<<n<<'\n';
     Matrix a = genereateMatrix(n);
     Matrix b = genereateMatrix(n);
+    auto start = std::chrono::high_resolution_clock::now();
     Matrix correctRes = stupidMatrixMultiplication(a, b);
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    std::cout << "Single thread stupid algorithm time: " << duration.count() << " ms" << std::endl;
+    
     solve(a,b,correctRes,blockSize);
     
 }

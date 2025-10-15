@@ -1,18 +1,29 @@
-﻿#include <vector>
-#include <iostream>
-#include <chrono>
+﻿#include <iostream>
+#include <vector>
 #include <windows.h>
+#include <chrono>
+#include <cstdlib>
+#include <ctime>
 #include <fstream>
-using namespace std;
 
+using namespace std;
 using Matrix = vector<vector<int>>;
 using Row = vector<int>;
 
-CRITICAL_SECTION cs;
+CRITICAL_SECTION cs; 
+
+struct ThreadData {
+    int blockSize;
+    Matrix* a;
+    Matrix* b;
+    Matrix* res;
+    int n;
+    int ai, aj, bi, bj;
+};
 
 Matrix generateMatrix(int n) {
     int limit = 6;
-    srand(time(0));
+    srand(static_cast<unsigned>(time(0)));
     Matrix matrix(n, Row(n));
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++)
@@ -30,82 +41,85 @@ Matrix stupidMatrixMultiplication(Matrix& a, Matrix& b) {
     return res;
 }
 
-void printMatrix(Matrix& a) {
-    for (auto& row : a) {
-        for (auto& x : row)
-            cout << x << ' ';
-        cout << '\n';
-    }
-    cout << "_____________________\n";
-}
+DWORD WINAPI multiplicate_blocks(LPVOID param) {
+    ThreadData* data = static_cast<ThreadData*>(param);
+    int n = data->n;
+    int blockSize = data->blockSize;
+    Matrix& a = *(data->a);
+    Matrix& b = *(data->b);
+    Matrix& res = *(data->res);
 
-struct BlockArgs {
-    int i, j, blockSize;
-    Matrix* a;
-    Matrix* b;
-    Matrix* res;
-};
-
-DWORD WINAPI addBlockMultiplication(LPVOID param) {
-    BlockArgs* args = (BlockArgs*)param;
-    int n = args->a->size();
-    for (int row = args->i * args->blockSize; row < min(n, (args->i + 1) * args->blockSize); row++) {
-        for (int col = args->j * args->blockSize; col < min(n, (args->j + 1) * args->blockSize); col++) {
+    for (int i = data->ai * blockSize; i < min((data->ai + 1) * blockSize, n); i++) {
+        for (int j = data->bj * blockSize; j < min((data->bj + 1) * blockSize, n); j++) {
             int sum = 0;
-            for (int k = 0; k < n; k++) {
-                sum += (*args->a)[row][k] * (*args->b)[k][col];
+            for (int k = data->aj * blockSize; k < min((data->aj + 1) * blockSize, n); k++) {
+                sum += a[i][k] * b[k][j];
             }
-            (*args->res)[row][col] += sum;
+            EnterCriticalSection(&cs);
+            res[i][j] += sum;
+            LeaveCriticalSection(&cs);
         }
     }
-    delete args;
-    return 0;
-}
 
-Matrix singleThreadblockMultiplication(Matrix& a, Matrix& b, int blockSize) {
-    int n = a.size();
-    Matrix res(n, Row(n));
-    int blocks = n / blockSize + (n % blockSize != 0);
-    for (int i = 0; i < blocks; i++)
-        for (int j = 0; j < blocks; j++)
-            for (int row = i * blockSize; row < min(n, (i + 1) * blockSize); row++)
-                for (int col = j * blockSize; col < min(n, (j + 1) * blockSize); col++)
-                    for (int k = 0; k < n; k++)
-                        res[row][col] += a[row][k] * b[k][col];
-    return res;
+    delete data;
+    return 0;
 }
 
 Matrix multiThreadblockMultiplication(Matrix& a, Matrix& b, int blockSize, int& threadsUsed) {
     int n = a.size();
-    Matrix res(n, Row(n));
+    Matrix res(n, Row(n, 0));
     int blocks = n / blockSize + (n % blockSize != 0);
     vector<HANDLE> handles;
-    InitializeCriticalSection(&cs);
 
     for (int i = 0; i < blocks; i++) {
         for (int j = 0; j < blocks; j++) {
-            BlockArgs* args = new BlockArgs{ i, j, blockSize, &a, &b, &res };
-            HANDLE hThread = CreateThread(nullptr, 0, addBlockMultiplication, args, 0, nullptr);
-            if (hThread) {
-                handles.push_back(hThread);
-                threadsUsed++;
+            for (int k = 0; k < blocks; k++) {
+                ThreadData* data = new ThreadData{ blockSize, &a, &b, &res, n, i, k, k, j };
+                HANDLE hThread = CreateThread(nullptr, 0, multiplicate_blocks, data, 0, nullptr);
+                if (hThread) {
+                    handles.push_back(hThread);
+                    threadsUsed++;
+                }
             }
         }
     }
 
-    WaitForMultipleObjects(handles.size(), handles.data(), TRUE, INFINITE);
-    for (HANDLE h : handles) CloseHandle(h);
-    DeleteCriticalSection(&cs);
+    WaitForMultipleObjects(static_cast<DWORD>(handles.size()), handles.data(), TRUE, INFINITE);
+    for (HANDLE h : handles) {
+        CloseHandle(h);
+    }
+
     return res;
 }
 
+void solve(Matrix& a, Matrix& b, Matrix& correctRes, int blockSize) {
+    cout << "Block size: " << blockSize << '\n';
+    int threadsUsed = 0;
+    auto start = chrono::high_resolution_clock::now();
+    Matrix result = multiThreadblockMultiplication(a, b, blockSize, threadsUsed);
+    auto stop = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+    cout << "Multi thread block algorithm time: " << duration.count() << " ms" << endl;
+
+    if (result == correctRes)
+        cout << "Multi thread block multiplication returned correct matrix\n";
+    else
+        cout << "Multi thread block multiplication returned incorrect matrix\n";
+
+    cout << "Number of used threads in multi thread: " << threadsUsed << "\n======================\n";
+}
+
 int main() {
-    fstream out("output.txt");
+    InitializeCriticalSection(&cs); 
+
+    ofstream out("out.txt", ios::app);
+    streambuf* coutbuf = cout.rdbuf();
+    cout.rdbuf(out.rdbuf());
+
     int n, blockSize;
     cin >> n >> blockSize;
-    out << "Matrix size: " << n << " * " << n << '\n';
-    out << "Block size: " << blockSize << '\n';
 
+    cout << "Matrix size: " << n << " * " << n << '\n';
     Matrix a = generateMatrix(n);
     Matrix b = generateMatrix(n);
 
@@ -113,25 +127,10 @@ int main() {
     Matrix correctRes = stupidMatrixMultiplication(a, b);
     auto stop = chrono::high_resolution_clock::now();
     auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-    out << "Single thread stupid algorithm time: " << duration.count() << " ms\n";
+    cout << "Single thread stupid algorithm time: " << duration.count() << " ms" << endl;
 
-    start = chrono::high_resolution_clock::now();
-    Matrix singleThreadRes = singleThreadblockMultiplication(a, b, blockSize);
-    stop = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-    out << "Single thread block algorithm time: " << duration.count() << " ms\n";
+    solve(a, b, correctRes, blockSize);
 
-    int threadsUsed = 0;
-    start = chrono::high_resolution_clock::now();
-    Matrix multiThreadRes = multiThreadblockMultiplication(a, b, blockSize, threadsUsed);
-    stop = chrono::high_resolution_clock::now();
-    duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
-    out << "Multi thread block algorithm time: " << duration.count() << " ms\n";
-
-    out << (correctRes == singleThreadRes ? "Single thread block multiplication returned correct matrix\n"
-        : "Single thread block multiplication returned incorrect matrix\n");
-    out << (correctRes == multiThreadRes ? "Multi thread block multiplication returned correct matrix\n"
-        : "Multi thread block multiplication returned incorrect matrix\n");
-    out << "Number of used threads in multi thread: " << threadsUsed << '\n';
-    out.close();
+    cout.rdbuf(coutbuf);
+    DeleteCriticalSection(&cs); 
 }

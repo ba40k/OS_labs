@@ -114,7 +114,11 @@ int main() {
     cout << "Matrix size: " << n << " * " << n << '\n';
     Matrix a = generateMatrix(n);
     Matrix b = generateMatrix(n);
+    auto start = std::chrono::high_resolution_clock::now();
     Matrix correctRes = stupidMatrixMultiplication(a, b);
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    std::cout << "Single thread stupid algorithm time: " << duration.count() << " ms" << std::endl;
     solve(a, b, correctRes, blockSize);
     
 }
