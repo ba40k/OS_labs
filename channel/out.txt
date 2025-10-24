@@ -1,0 +1,21 @@
+Matrix size: 1024 * 1024
+Single thread stupid algorithm time: 7053 ms
+Block size: 420
+Multi thread block algorithm time: 1182 ms
+Multi thread block multiplication returned correct matrix
+Number of used threads in multi thread: 22
+======================
+Matrix size: 1024 * 1024
+Single thread stupid algorithm time: 7198 ms
+Block size: 128
+Multi thread block algorithm time: 4119 ms
+Multi thread block multiplication returned correct matrix
+Number of used threads in multi thread: 22
+======================
+Matrix size: 1024 * 1024
+Single thread stupid algorithm time: 6772 ms
+Block size: 256
+Multi thread block algorithm time: 1723 ms
+Multi thread block multiplication returned correct matrix
+Number of used threads in multi thread: 22
+======================
