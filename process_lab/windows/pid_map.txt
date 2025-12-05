@@ -1,0 +1,10 @@
+victim1 3960
+victim2 20772
+victim3 15368
+victim4 1324
+victim5 21520
+victim6 15060
+victim7 21576
+victim8 15592
+victim9 22104
+victim10 4200

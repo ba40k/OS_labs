@@ -1,50 +1,34 @@
 #include <iostream>
-#include <vector>
 #include <string>
 #include <windows.h>
-#include <tlhelp32.h>
 #include <sstream>
 #include <cctype>
 #include <unordered_set>
 #include <thread>
 #include <chrono>
+#include <fstream>
+#include <map>
 
 using namespace std;
 
-vector<DWORD> pids_by_name(const string &name) {
-    vector<DWORD> result;
-    PROCESSENTRY32 entry;
-    entry.dwSize = sizeof(PROCESSENTRY32);
+map<string, DWORD> pid_map;  // Маппинг имя -> PID
 
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) return result;
-
-    if (Process32First(snapshot, &entry)) {
-        do {
-            // Convert wide string to regular string
-            string procName;
-            for (int i = 0; entry.szExeFile[i] != '\0'; ++i) {
-                procName += static_cast<char>(entry.szExeFile[i]);
-            }
-            
-            // Remove .exe extension if present
-            if (procName.length() >= 4) {
-                string ext = procName.substr(procName.length() - 4);
-                // Convert to lowercase for comparison
-                for (auto &c : ext) c = tolower(c);
-                if (ext == ".exe") {
-                    procName = procName.substr(0, procName.length() - 4);
-                }
-            }
-
-            if (procName == name) {
-                result.push_back(entry.th32ProcessID);
-            }
-        } while (Process32Next(snapshot, &entry));
+// Загружаем маппинг из файла
+void load_pid_map() {
+    ifstream pidFile("pid_map.txt");
+    if (!pidFile.is_open()) {
+        cout << "[killer] WARNING: Could not open pid_map.txt\n";
+        return;
     }
-
-    CloseHandle(snapshot);
-    return result;
+    string name;
+    DWORD pid;
+    int count = 0;
+    while (pidFile >> name >> pid) {
+        pid_map[name] = pid;
+        count++;
+    }
+    pidFile.close();
+    cout << "[killer] Loaded " << count << " process mappings\n";
 }
 
 bool kill_pid(DWORD pid) {
@@ -75,6 +59,9 @@ bool kill_pid(DWORD pid) {
 }
 
 int main(int argc, char** argv) {
+    cout << "[killer] Starting with " << argc << " arguments\n";
+    load_pid_map();  // Загружаем маппинг имя -> PID
+    
     string nameArg;
     DWORD idArg = 0;
 
@@ -82,14 +69,17 @@ int main(int argc, char** argv) {
         string s = argv[i];
         if (s == "--id" && i + 1 < argc) {
             idArg = (DWORD)stoul(argv[++i]);
+            cout << "[killer] Got --id " << idArg << "\n";
         } else if (s == "--name" && i + 1 < argc) {
             nameArg = argv[++i];
+            cout << "[killer] Got --name " << nameArg << "\n";
         }
     }
 
     unordered_set<DWORD> seen;
 
     if (idArg != 0) {
+        cout << "[killer] Trying to kill pid=" << idArg << "\n";
         if (kill_pid(idArg)) {
             cout << "killed pid=" << idArg << "\n";
         } else {
@@ -99,22 +89,31 @@ int main(int argc, char** argv) {
     }
 
     if (!nameArg.empty()) {
-        auto pids = pids_by_name(nameArg);
-        if (pids.empty()) {
-            cout << "none name=" << nameArg << "\n";
-        } else {
-            for (auto p : pids) {
-                if (seen.count(p)) continue;
-                if (kill_pid(p)) cout << "killed pid=" << p << " name=" << nameArg << "\n";
-                else cout << "failed pid=" << p << "\n";
-                seen.insert(p);
+        cout << "[killer] Looking for name=" << nameArg << "\n";
+        // Используем маппинг для поиска по имени
+        if (pid_map.count(nameArg)) {
+            DWORD pid = pid_map[nameArg];
+            cout << "[killer] Found " << nameArg << " = " << pid << "\n";
+            if (!seen.count(pid)) {
+                if (kill_pid(pid)) {
+                    cout << "killed pid=" << pid << " name=" << nameArg << "\n";
+                } else {
+                    cout << "failed pid=" << pid << "\n";
+                }
+                seen.insert(pid);
             }
+        } else {
+            cout << "none name=" << nameArg << "\n";
         }
     }
 
-    const char* env = getenv("PROC_TO_KILL");
-    if (env) {
-        string s(env);
+    cout << "[killer] Checking PROC_TO_KILL env variable\n";
+    char envBuffer[1024] = {0};
+    DWORD envSize = GetEnvironmentVariableA("PROC_TO_KILL", envBuffer, sizeof(envBuffer) - 1);
+    cout << "[killer] PROC_TO_KILL size=" << envSize << "\n";
+    if (envSize > 0 && envSize < sizeof(envBuffer)) {
+        cout << "[killer] PROC_TO_KILL content: " << envBuffer << "\n";
+        string s(envBuffer);
         stringstream ss(s);
         string token;
         while (getline(ss, token, ',')) {
@@ -122,19 +121,27 @@ int main(int argc, char** argv) {
             auto end = token.find_last_not_of(" \t\n\r\f\v\'");
             if (start == string::npos) continue;
             string pname = token.substr(start, end - start + 1);
-            auto pids = pids_by_name(pname);
-            if (pids.empty()) {
-                cout << "none name=" << pname << "\n";
-            } else {
-                for (auto p : pids) {
-                    if (seen.count(p)) continue;
-                    if (kill_pid(p)) cout << "killed pid=" << p << " name=" << pname << "\n";
-                    else cout << "failed pid=" << p << "\n";
-                    seen.insert(p);
+            cout << "[killer] Processing env token: " << pname << "\n";
+            
+            // Используем маппинг для поиска по имени
+            if (pid_map.count(pname)) {
+                DWORD pid = pid_map[pname];
+                cout << "[killer] Found env token " << pname << " = " << pid << "\n";
+                if (!seen.count(pid)) {
+                    if (kill_pid(pid)) {
+                        cout << "killed pid=" << pid << " name=" << pname << "\n";
+                    } else {
+                        cout << "failed pid=" << pid << "\n";
+                    }
+                    seen.insert(pid);
                 }
+            } else {
+                cout << "[killer] Not found in map: " << pname << "\n";
+                cout << "none name=" << pname << "\n";
             }
         }
     }
 
+    cout << "[killer] Done\n";
     return 0;
 }
