@@ -1,0 +1,40 @@
+env PROC_TO_KILL=victim1,victim2,victim3
+started victim1 pid=7317
+started victim2 pid=7318
+started victim3 pid=7319
+started victim4 pid=7320
+started victim5 pid=7321
+started victim6 pid=7322
+started victim7 pid=7323
+started victim8 pid=7324
+started victim9 pid=7325
+started victim10 pid=7326
+victim victim7 pid=7323
+victim victim10 pid=7326
+victim victim9 pid=7325
+victim victim2 pid=7318
+victim victim3 pid=7319
+victim victim4 pid=7320
+victim victim6 pid=7322
+victim victim5 pid=7321
+victim victim8 pid=7324
+victim victim1 pid=7317
+run: killer --name victim5 --id 7320 (and env list always processed) // требование убить процессы в имени которых есть victim5, или у которых  PID = 7320, и все процессы из перемнной 
+killed pid=7320
+killed pid=7321 name=victim5
+killed pid=7317 name=victim1
+killed pid=7318 name=victim2
+killed pid=7319 name=victim3
+
+Summary (victim, pid, status):
+victim1: pid=7317 -> killed
+victim2: pid=7318 -> killed
+victim3: pid=7319 -> killed
+victim4: pid=7320 -> killed
+victim5: pid=7321 -> killed
+victim6: pid=7322 -> alive
+victim7: pid=7323 -> alive
+victim8: pid=7324 -> alive
+victim9: pid=7325 -> alive
+victim10: pid=7326 -> alive
+env cleared
