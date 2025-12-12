@@ -7,4 +7,4 @@ g++ -o P.exe P.cpp
 g++ -o S.exe S.cpp
 g++ -o Main.exe main.cpp -static
 
-Main.exe
+.\Main.exe
