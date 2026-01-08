@@ -129,6 +129,9 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "C:\Users\Радомир\source\Operating-Systems\StaticMath\x64\Debug\DLL1.dll"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
@@ -137,9 +140,8 @@
     <ProjectReference Include="..\StaticLib1\StaticLib1.vcxproj">
       <Project>{39bcb942-a926-4e6c-a9d1-641503e2bddd}</Project>
     </ProjectReference>
-   <ItemGroup>
-    <ProjectReference Include="..\DLL1\Dll1.vcxproj">
-      <Project>{39bcb942-a926-4e6c-a9d1-641503e2bddd}</Project>
+     <ProjectReference Include="..\DLL1\DLL1.vcxproj">
+      <Project>{12fff112-b431-4e6a-a9xc-312113d7aacd}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
