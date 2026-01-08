@@ -24,26 +24,29 @@ public:
 
     
     void send(T &&value) {
-        unique_lock<mutex> lk(mtx);
-        cv_not_full.wait(lk, [&]{ return q.size() < capacity || closed; });
-        if (closed) throw runtime_error("send on closed channel");
-        q.push_back(std::move(value));
-        cv_not_empty.notify_one();
-    }
+    unique_lock<mutex> lk(mtx);
+    cv_not_full.wait(lk, [&]{ return q.size() < capacity || closed; });
+    if (closed) throw runtime_error("send on closed channel");
+    q.push_back(std::move(value));
+    cv_not_empty.notify_one();
+}
 
     
     pair<T, bool> recv() {
-        unique_lock<mutex> lk(mtx);
-        cv_not_empty.wait(lk, [&]{ return !q.empty() || closed; });
-        if (!q.empty()) {
-            T val = std::move(q.front());
-            q.pop_front();
-            cv_not_full.notify_one();
-            return { std::move(val), true };
-        }
-        
-        return { T(), false };
+    unique_lock<mutex> lk(mtx);
+    cv_not_empty.wait(lk, [&]{ 
+        return !q.empty() || (closed && q.empty()); 
+    });
+    
+    if (!q.empty()) {
+        T val = std::move(q.front());
+        q.pop_front();
+        cv_not_full.notify_one();
+        return { std::move(val), true };
     }
+    
+    return { T(), false };
+}
 
     
     void close() {
