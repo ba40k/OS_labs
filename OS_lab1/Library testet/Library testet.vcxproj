@@ -137,6 +137,10 @@
     <ProjectReference Include="..\StaticLib1\StaticLib1.vcxproj">
       <Project>{39bcb942-a926-4e6c-a9d1-641503e2bddd}</Project>
     </ProjectReference>
+   <ItemGroup>
+    <ProjectReference Include="..\DLL1\Dll1.vcxproj">
+      <Project>{39bcb942-a926-4e6c-a9d1-641503e2bddd}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
